@@ -9,3 +9,5 @@ node_modules
 data
 *.mp3
 logs
+
+.env.setup.*

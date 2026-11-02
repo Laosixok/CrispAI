@@ -45,7 +45,11 @@ hono.get(`${storage.UPLOAD_ROUTE}/:name`, async (c) => {
   const file = await storage.getFile(c.req.param("name"));
   if (!file) return c.notFound();
   return new Response(file, {
-    headers: { "Cache-Control": "public, max-age=31536000, immutable" },
+    headers: {
+      "Cache-Control": "public, max-age=31536000, immutable",
+      "X-Content-Type-Options": "nosniff",
+      "Content-Security-Policy": "sandbox; default-src 'none'",
+    },
   });
 });
 // 访客网站引用的欢迎语脚本

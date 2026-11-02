@@ -11,6 +11,37 @@ Crisp 智能客服助手的自部署版：关键词自动回复、AI 回复（�
 | `postgres` | `pgvector/pgvector`，知识库检索用 vector 扩展 |
 | `redis` | BullMQ 队列 |
 
+## 自有仓库一键部署
+
+代码、后台静态文件和镜像构建全部来自本仓库，不需要连接上游仓库或 Haruka 云端。
+仍需连接 Crisp、Telegram、你配置的 AI API，以及 Docker 基础镜像和依赖下载服务。
+
+Debian / Ubuntu 服务器准备 Docker Engine、Compose 插件、Git 和 OpenSSL 后执行：
+
+```bash
+git clone https://github.com/Laosixok/CrispAI.git && cd CrispAI && bash setup.sh
+```
+
+首次运行交互填写域名、Crisp、Telegram 和 AI 配置，自动生成数据库密码并构建启动。
+已有 `.env` 时保留配置；再次执行 `bash setup.sh` 会重新构建启动，不拉上游。
+容器默认只监听 `127.0.0.1:3000`，需要自己配置 HTTPS 反向代理、Crisp 私有插件和群组。
+修改端口可在 `.env` 设置 `PORT`，外部反代部署可显式设置 `BIND_ADDRESS`。
+
+更新自己的版本：
+
+```bash
+git pull --ff-only origin master
+bash setup.sh
+```
+
+验证附件选择逻辑和 TypeScript：
+
+```bash
+bun install --frozen-lockfile
+bun test tests/telegramMedia.test.ts
+bunx tsc --noEmit
+```
+
 ## 部署
 
 需要一个能被公网通过 **https** 访问的域名（Crisp 和 Telegram 的 Webhook 都要回调它）。
@@ -95,3 +126,17 @@ Copyright (C) 2026 DyAxy。
 
 Crisp 是 Crisp IM SAS 的商标，本项目是独立的第三方集成，与 Crisp 官方无关。
 
+
+## Telegram 客服附件回复
+
+在访客对应的话题内发送文字、照片、带说明的照片、原图文件、普通文件、视频或 GIF，
+服务会转发到 Crisp。图片使用原生文件消息，不再依赖 Markdown 图片渲染。
+相册中的每张图片分别投递。静态贴纸按 WebP 图片发送，视频贴纸按 WebM 文件发送；
+TGS 动态贴纸发送静态预览图，不保留动画。视频是否内嵌播放取决于 Crisp 客户端。
+
+- 配置 `PUBLIC_URL=https://你的域名`，确保 `/upload/` 能公开访问，上传目录已持久化。
+- 附件上限 20 MB（当前 Telegram 云端 Bot API 下载限制）。
+- 人工回复开始处理时暂停该会话 AI，包括图片识别；可用话题内按钮重新开启。
+- 全部发送成功后标记 👌；失败时在话题内提示。超时可能已送达部分内容，核实后重发。
+- Telegram 重复投递按群组和消息 ID 去重，保留最近 1000 个成功任务，最长 7 天。
+- 不自动重试 Crisp 发送，避免超时后重复回复；不支持编辑或撤回消息同步。

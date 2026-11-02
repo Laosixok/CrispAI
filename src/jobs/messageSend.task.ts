@@ -378,7 +378,7 @@ async function handleImageMessage(
   project: any,
   telegramMessage?: Message.TextMessage | Message.PhotoMessage,
 ) {
-  if (!project.enableAI || !project.enableAIPic) return;
+  if (!project.enableAI || !project.enableAIPic || !session.enable_reply) return;
 
   const messages = await buildMessages(session, body, project);
   messages.push({

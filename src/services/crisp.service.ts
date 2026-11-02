@@ -282,6 +282,21 @@ export const sendMessage = async (
     throw error;
   }
 };
+/** Send native file messages so Crisp can render images and offer downloads. */
+export const sendFile = async (
+  websiteId: string,
+  sessionId: string,
+  content: { url: string; name: string; type: string },
+  botName: string,
+  botIcon: string,
+) => {
+  await crisp.post(`/website/${websiteId}/conversation/${sessionId}/message`, {
+    type: "file", content, from: "operator",
+    origin: Bun.env.CRISP_URN ?? "chat",
+    user: { type: "website", nickname: botName ?? "智能客服", avatar: botIcon },
+  });
+};
+
 export const sendOption = async (
   website_id: string,
   session_id: string,

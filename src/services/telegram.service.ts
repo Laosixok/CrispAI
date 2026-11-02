@@ -56,17 +56,12 @@ bot.on("callback_query:data", async (ctx) => {
     });
   }
 });
-bot.on("msg:text", async (ctx) => {
-  if (!ctx.message?.is_topic_message) return;
-  enqueue(telegramReplyTask.queue, "telegramReply", ctx.message);
-});
-bot.on("msg:photo", async (ctx) => {
-  if (!ctx.message?.is_topic_message) return;
-  enqueue(telegramReplyTask.queue, "telegramReply", ctx.message);
-});
-bot.on("msg:sticker", async (ctx) => {
-  if (!ctx.message?.is_topic_message) return;
-  enqueue(telegramReplyTask.queue, "telegramReply", ctx.message);
+bot.on(["msg:text", "msg:photo", "msg:document", "msg:video", "msg:animation", "msg:sticker"], async (ctx) => {
+  if (!ctx.message?.is_topic_message || ctx.message.from?.is_bot) return;
+  // Stable IDs suppress duplicate Telegram webhook deliveries while retained.
+  await telegramReplyTask.queue.add("telegramReply", ctx.message, {
+    jobId: `tg-${ctx.chat.id}-${ctx.message.message_id}`,
+  });
 });
 
 export const changeAI = (groupId: number, topicId: number, bool: boolean) => {
