@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { embeddingConfig, requestEmbedding } from "@/utils/embedding";
 
 const openai = new OpenAI({
   baseURL: Bun.env.OPENAI_URL,
@@ -7,16 +8,15 @@ const openai = new OpenAI({
 
 // 对话模型，可换成任何 OpenAI 兼容接口支持的模型
 export const CHAT_MODEL = Bun.env.OPENAI_MODEL || "gpt-4.1-nano";
-// 向量模型。payload.vector 列固定 1536 维，换模型必须保证输出也是 1536 维
-export const EMBEDDING_MODEL =
-  Bun.env.OPENAI_EMBEDDING_MODEL || "text-embedding-3-small";
+// Saving knowledge, importing knowledge, and searching questions all use this client.
+const config = embeddingConfig(Bun.env);
+const embeddingClient = new OpenAI({
+  baseURL: config.baseURL,
+  apiKey: config.apiKey,
+});
+export const EMBEDDING_MODEL = config.model;
 
-export const createEmbedding = async (input: string) => {
-  const embedding = await openai.embeddings.create({
-    model: EMBEDDING_MODEL,
-    input,
-  });
-  return embedding.data[0]?.embedding;
-};
+export const createEmbedding = (input: string) =>
+  requestEmbedding(embeddingClient, config, input);
 
 export default openai;

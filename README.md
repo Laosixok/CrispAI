@@ -140,3 +140,33 @@ TGS 动态贴纸发送静态预览图，不保留动画。视频是否内嵌播�
 - 全部发送成功后标记 👌；失败时在话题内提示。超时可能已送达部分内容，核实后重发。
 - Telegram 重复投递按群组和消息 ID 去重，保留最近 1000 个成功任务，最长 7 天。
 - 不自动重试 Crisp 发送，避免超时后重复回复；不支持编辑或撤回消息同步。
+
+## 独立向量服务商
+
+聊天使用 `OPENAI_URL`、`OPENAI_KEY`、`OPENAI_MODEL`。
+知识库保存、导入时生成向量、以及用户问题检索统一使用：
+
+```ini
+OPENAI_EMBEDDING_URL=https://你的向量服务商/v1
+OPENAI_EMBEDDING_KEY=向量服务商Key
+OPENAI_EMBEDDING_MODEL=text-embedding-3-small
+# 服务商和模型支持 dimensions 时可显式请求 1536 维：
+# OPENAI_EMBEDDING_DIMENSIONS=1536
+```
+
+URL 是 Base URL，不要追加 `/embeddings`。服务商必须兼容 OpenAI Embeddings API。
+地址和 Key 不填时分别回退至聊天配置，旧配置无需修改；使用独立服务商时请同时填写两项。
+不填 DIMENSIONS 时不发送该参数，以兼容不接受此参数的接口。
+数据库固定 1536 维，响应会校验维度、数值及空结果，避免无效向量入库。
+向量接口仍会收到待入库知识内容及检索问题，聊天接口收到检索原文。
+
+更新代码并重新构建：
+
+```bash
+git pull --ff-only origin master
+# 编辑 .env 填写向量服务商配置后执行
+docker compose up -d --build app
+```
+
+更换向量模型或切换到同名但实际实现不同的服务商后，必须逐条编辑并保存已有知识库以重新生成向量；
+完成前避免启用知识库检索，不能混用不同模型的向量。当前没有自动批量重建功能。
