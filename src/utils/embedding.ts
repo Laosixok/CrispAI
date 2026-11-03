@@ -4,8 +4,8 @@ export const EMBEDDING_SIZE = 1536;
 
 export function embeddingConfig(env: Record<string, string | undefined>) {
   const dimensions = env.OPENAI_EMBEDDING_DIMENSIONS?.trim();
-  if (dimensions && dimensions !== String(EMBEDDING_SIZE)) {
-    throw new Error("OPENAI_EMBEDDING_DIMENSIONS 必须为 1536（当前数据库维度）");
+  if (dimensions && !["1024", "1536"].includes(dimensions)) {
+    throw new Error("OPENAI_EMBEDDING_DIMENSIONS 必须为 1024 或 1536");
   }
   const baseURL = env.OPENAI_EMBEDDING_URL?.trim() || env.OPENAI_URL;
   const apiKey = env.OPENAI_EMBEDDING_KEY?.trim() || env.OPENAI_KEY;
@@ -13,7 +13,8 @@ export function embeddingConfig(env: Record<string, string | undefined>) {
     baseURL,
     apiKey,
     model: env.OPENAI_EMBEDDING_MODEL?.trim() || "text-embedding-3-small",
-    dimensions: dimensions ? EMBEDDING_SIZE : undefined,
+    size: dimensions ? Number(dimensions) : EMBEDDING_SIZE,
+    dimensions: dimensions ? Number(dimensions) : undefined,
   };
 }
 
@@ -29,9 +30,9 @@ export async function requestEmbedding(
     encoding_format: "float",
   });
   const vector = response.data[0]?.embedding;
-  if (!Array.isArray(vector) || vector.length !== EMBEDDING_SIZE ||
+  if (!Array.isArray(vector) || vector.length !== config.size ||
       !vector.every(value => typeof value === "number" && Number.isFinite(value))) {
-    throw new Error(`向量接口必须返回 ${EMBEDDING_SIZE} 维有效数值，实际为 ${Array.isArray(vector) ? vector.length : "空响应"}；请检查向量模型和维度配置`);
+    throw new Error(`向量接口必须返回 ${config.size} 维有效数值，实际为 ${Array.isArray(vector) ? vector.length : "空响应"}；请检查向量模型和维度配置`);
   }
   return vector;
 }

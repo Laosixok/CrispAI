@@ -74,13 +74,23 @@ create table if not exists public.payload (
   project    uuid        not null references public.project (id) on delete cascade,
   name       text        not null,
   raw        text        not null,
-  vector     extensions.vector(1536),
+  vector     extensions.vector,
   created_at timestamptz not null default now()
 );
 
 create index if not exists payload_project_idx on public.payload (project);
-create index if not exists payload_vector_idx  on public.payload
-  using hnsw (vector extensions.vector_cosine_ops);
+-- One-time, non-destructive migration from the fixed 1536-dimensional column.
+-- Unbounded vector permits both dimensions without changing schema on configuration switches.
+drop index if exists public.payload_vector_idx;
+do $$
+begin
+  if exists (select 1 from pg_attribute
+    where attrelid = 'public.payload'::regclass and attname = 'vector' and atttypmod <> -1) then
+    alter table public.payload alter column vector type extensions.vector;
+  end if;
+end $$;
+alter table public.payload add column if not exists embedding_model text;
+-- Historical vectors have no reliable model identity. Keep them but exclude until rebuilt.
 
 -- ---------------------------------------------------------------------------
 -- 4. session — Crisp 会话 ↔ Telegram 话题绑定
@@ -109,7 +119,7 @@ create index if not exists session_enable_idx      on public.session (enable_rep
 -- ---------------------------------------------------------------------------
 create or replace function public.match_payloads(
   project         uuid,
-  query_embedding extensions.vector(1536),
+  query_embedding extensions.vector,
   match_count     integer default 3
 )
 returns table (id uuid, name text, raw text, similarity double precision)
@@ -121,9 +131,11 @@ as $$
          p.name,
          p.raw,
          1 - (p.vector <=> query_embedding) as similarity
-  from public.payload p
-  where p.project = match_payloads.project
-    and p.vector is not null
+  from (select * from public.payload p
+        where p.project = match_payloads.project
+          and p.vector is not null
+          and vector_dims(p.vector) = vector_dims(query_embedding)
+        offset 0) p
   order by p.vector <=> query_embedding
   limit match_count;
 $$;

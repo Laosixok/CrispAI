@@ -15,6 +15,7 @@ const embeddingClient = new OpenAI({
   apiKey: config.apiKey,
 });
 export const EMBEDDING_MODEL = config.model;
+export const EMBEDDING_DIMENSIONS = config.size;
 
 export const createEmbedding = (input: string) =>
   requestEmbedding(embeddingClient, config, input);

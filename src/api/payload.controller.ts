@@ -39,7 +39,7 @@ export const saveController = async (c: Context) => {
     });
   }
   if (!embedding) {
-    return c.json({ message: "生成向量失败，请检查向量接口地址、Key、模型权限及 1536 维配置" }, 502);
+    return c.json({ message: "生成向量失败，请检查向量接口地址、Key、模型权限及 向量维度配置" }, 502);
   }
 
   if (payload_id) {

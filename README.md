@@ -157,7 +157,7 @@ OPENAI_EMBEDDING_MODEL=text-embedding-3-small
 URL 是 Base URL，不要追加 `/embeddings`。服务商必须兼容 OpenAI Embeddings API。
 地址和 Key 不填时分别回退至聊天配置，旧配置无需修改；使用独立服务商时请同时填写两项。
 不填 DIMENSIONS 时不发送该参数，以兼容不接受此参数的接口。
-数据库固定 1536 维，响应会校验维度、数值及空结果，避免无效向量入库。
+数据库兼容 1024 / 1536 维，响应按配置校验维度、数值及空结果。
 向量接口仍会收到待入库知识内容及检索问题，聊天接口收到检索原文。
 
 更新代码并重新构建：
@@ -169,4 +169,38 @@ docker compose up -d --build app
 ```
 
 更换向量模型或切换到同名但实际实现不同的服务商后，必须逐条编辑并保存已有知识库以重新生成向量；
-完成前避免启用知识库检索，不能混用不同模型的向量。当前没有自动批量重建功能。
+也可以使用下方批量重建命令。不能混用不同模型的向量。
+
+## 切换 1024 / 1536 维
+
+默认保持 1536。Qwen3 Embedding 0.6b 示例（Ollama 地址需从 app 容器可达）：
+
+```ini
+OPENAI_EMBEDDING_URL=http://ollama:11434/v1
+OPENAI_EMBEDDING_KEY=ollama
+OPENAI_EMBEDDING_MODEL=qwen3-embedding:0.6b
+OPENAI_EMBEDDING_DIMENSIONS=1024
+```
+
+OpenAI small 则设置模型 `text-embedding-3-small`，维度 `1536`。
+改配置后执行 `docker compose up -d --build app`。
+首次升级自动把向量列改为可变维度，保留所有原文和向量，移除旧固定维度 HNSW 索引；
+当前使用按项目、模型、维度过滤后的精确余弦检索，知识库很大时性能需实测。
+历史无模型标记的向量不会自动认作当前模型，需重建后才能检索。
+导入知识库总是按当前配置重新生成向量，避免同名模型或旧向量污染检索。
+
+升级前备份：
+
+```bash
+docker compose exec -T postgres pg_dump -U crispai crispai > backup-before-dimensions.sql
+```
+
+在相同 .env 配置下批量重建（按条更新，原文保留；会产生向量 API 费用）：
+
+```bash
+docker compose exec -T app bun run src/rebuildEmbeddings.ts
+```
+
+建议重建时暂时关闭项目 AI 回复，完成后再开启。失败条目保留原数据，命令返回非零；
+修复接口后可重跑（会再次处理所有条目）。无知识条目时无需重建。
+切换服务商但模型名称相同也必须重建；系统不能根据同名模型判断向量空间是否相同。

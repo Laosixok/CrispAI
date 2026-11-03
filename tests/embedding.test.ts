@@ -9,7 +9,7 @@ test('legacy configuration and optional dimensions', () => {
   assert.equal(c.apiKey,'chat-key');
   assert.equal(c.model,'text-embedding-3-small');
   assert.equal(c.dimensions,undefined);
-  assert.throws(() => embeddingConfig({OPENAI_EMBEDDING_DIMENSIONS:'1024'}));
+  assert.throws(() => embeddingConfig({OPENAI_EMBEDDING_DIMENSIONS:'768'}));
 });
 test('independent provider receives vector requests with its own key', async () => {
   const c = embeddingConfig({OPENAI_URL:'https://chat.example/v1',OPENAI_KEY:'chat-key',
@@ -42,4 +42,15 @@ test('omits dimensions for legacy endpoints and propagates API errors', async ()
     throw new Error('provider unavailable');
   }}};
   await assert.rejects(requestEmbedding(client as any,c,'test'),/provider unavailable/);
+});
+
+test('1024 config accepts only 1024 vectors', async () => {
+  const c=embeddingConfig({OPENAI_EMBEDDING_DIMENSIONS:'1024',OPENAI_EMBEDDING_MODEL:'qwen3-embedding:0.6b'});
+  const client={embeddings:{create:async(body:any)=>{
+    assert.equal(body.dimensions,1024);
+    return {data:[{embedding:Array(1024).fill(0.2)}]};
+  }}};
+  assert.equal((await requestEmbedding(client as any,c,'test')).length,1024);
+  const wrong={embeddings:{create:async()=>({data:[{embedding:Array(1536).fill(0.2)}]})}};
+  await assert.rejects(requestEmbedding(wrong as any,c,'test'),/1024/);
 });

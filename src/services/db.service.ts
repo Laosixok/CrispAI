@@ -1,6 +1,8 @@
 import { SQL } from "bun";
 import path from "path";
 import logger from "@/services/logger.service";
+import { embeddingConfig } from "@/utils/embedding";
+const activeEmbedding = embeddingConfig(Bun.env);
 
 /**
  * Postgres 服务封装
@@ -263,9 +265,9 @@ export const insertPayload = async (
       ? embedding
       : toVector(embedding);
   await sql`
-    insert into payload (id, project, name, raw, vector)
+    insert into payload (id, project, name, raw, vector, embedding_model)
     values (coalesce(${id ?? null}::uuid, gen_random_uuid()), ${project},
-            ${name}, ${raw}, ${vector}::extensions.vector)`;
+            ${name}, ${raw}, ${vector}::extensions.vector, ${activeEmbedding.model})`;
 };
 export const updatePayload = async (
   id: string,
@@ -277,7 +279,7 @@ export const updatePayload = async (
   await sql`
     update payload
     set name = ${name}, raw = ${raw},
-        vector = ${toVector(embedding)}::extensions.vector, created_at = now()
+        vector = ${toVector(embedding)}::extensions.vector, embedding_model = ${activeEmbedding.model}, created_at = now()
     where id = ${id} and project = ${project}`;
 };
 export const deletePayload = async (id: string) => {
@@ -292,9 +294,15 @@ export const matchPayloads = async (
   matchCount = 3,
 ): Promise<any[]> => {
   return await sql`
-    select id, name, raw, similarity
-    from match_payloads(${project}, ${toVector(embedding)}::extensions.vector,
-                        ${matchCount})`;
+    select id, name, raw,
+      1 - (vector OPERATOR(extensions.<=>) ${toVector(embedding)}::extensions.vector) as similarity
+    from (select * from payload
+          where project = ${project}
+            and embedding_model = ${activeEmbedding.model}
+            and extensions.vector_dims(vector) = ${activeEmbedding.size}
+          offset 0) compatible
+    order by vector OPERATOR(extensions.<=>) ${toVector(embedding)}::extensions.vector
+    limit ${matchCount}`;
 };
 
 // ---------------------------------------------------------------------------
@@ -318,9 +326,9 @@ export const importProject = async (data: {
     }
     for (const payload of data.payloads) {
       await tx`
-        insert into payload (project, name, raw, vector)
+        insert into payload (project, name, raw, vector, embedding_model)
         values (${project.id}, ${payload.name}, ${payload.raw},
-                ${payload.vector}::extensions.vector)`;
+                ${payload.vector}::extensions.vector, ${activeEmbedding.model})`;
     }
     return toProject(project);
   });

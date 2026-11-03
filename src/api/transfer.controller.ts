@@ -1,7 +1,7 @@
 import type { Context } from "hono";
 import z from "zod";
 import * as db from "@/services/db.service";
-import { createEmbedding, EMBEDDING_MODEL } from "@/services/openai.service";
+import { createEmbedding, EMBEDDING_MODEL, EMBEDDING_DIMENSIONS } from "@/services/openai.service";
 import logger from "@/services/logger.service";
 import { validate } from "@/api/validator";
 
@@ -18,7 +18,7 @@ import { validate } from "@/api/validator";
  */
 const FORMAT = "crispai-project";
 const VERSION = 1;
-const VECTOR_DIMENSIONS = 1536;
+const VECTOR_DIMENSIONS = EMBEDDING_DIMENSIONS;
 
 // 只导出配置字段。id / 多用户 / 计费 / 时间字段不带走
 const PROJECT_FIELDS = [
@@ -190,7 +190,8 @@ export const importController = async (c: Context) => {
   const payloads: { name: string; raw: string; vector: string | null }[] = [];
   let failed = 0;
   for (const payload of body.payloads) {
-    let vector = sameModel ? normalizeVector(payload.vector) : null;
+    // Regenerate imports: model names alone cannot establish provider/vector compatibility.
+    let vector: string | null = null;
     if (!vector) {
       try {
         vector = normalizeVector(await createEmbedding(payload.raw));
