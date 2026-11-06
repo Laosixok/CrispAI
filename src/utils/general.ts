@@ -108,7 +108,7 @@ export const generateTelegramSession = async (
     }
 
     const flow = [""];
-    const meta = await crisp.getMetas(website_id, "session_" + session_id);
+    const meta = await crisp.getMetas(website_id, "session_" + session_id).catch(() => []);
     if (meta && meta.length > 0) flow.push(...meta);
     const pages = await crisp.listPages(website_id, "session_" + session_id);
     if (pages && pages.length > 0) flow.push(...pages);

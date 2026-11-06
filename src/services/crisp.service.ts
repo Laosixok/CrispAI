@@ -1,3 +1,5 @@
+import { requestCache } from "@/utils/requestCache";
+import { linkConfig, visitorOrigin } from "@/utils/visitorLinks";
 import * as db from "@/services/db.service";
 import axios from "axios";
 import type { Context } from "hono";
@@ -167,7 +169,12 @@ export const crispWebhook = async (c: Context) => {
   return c.json({ ok: true });
 };
 
-export const getMetas = async (website_id: string, session_id: string) => {
+const metaCache = requestCache<string[]>();
+const pageCache = requestCache<any[]>();
+const siteLinks = linkConfig(Bun.env);
+export const getMetas = (website_id: string, session_id: string) =>
+  metaCache(JSON.stringify([website_id, session_id]), () => fetchMetas(website_id, session_id));
+const fetchMetas = async (website_id: string, session_id: string) => {
   try {
     const {
       data: { data },
@@ -205,13 +212,25 @@ export const getMetas = async (website_id: string, session_id: string) => {
     throw error;
   }
 };
+export const getConversationPages = (websiteId: string, sessionId: string) =>
+  pageCache(JSON.stringify([websiteId, sessionId]), async () => {
+    const response = await crisp.get(`/website/${websiteId}/conversation/${sessionId}/pages/1`);
+    return Array.isArray(response.data.data) ? response.data.data : [];
+  });
+
+export const getVisitorSiteOrigin = async (websiteId: string, sessionId: string) => {
+  if (!siteLinks.origins.size) return undefined;
+  try {
+    return visitorOrigin(await getConversationPages(websiteId, sessionId), siteLinks);
+  } catch {
+    logger.warn("访客页面读取失败，使用配置的默认官网");
+    return siteLinks.fallback;
+  }
+};
+
 export const listPages = async (website_id: string, session_id: string) => {
   try {
-    const {
-      data: { data },
-    } = await crisp.get(
-      `/website/${website_id}/conversation/${session_id}/pages/1`
-    );
+    const data = await getConversationPages(website_id, session_id);
     const flow = [];
     if (data && data.length > 0) {
       flow.push("");
